@@ -575,6 +575,15 @@
 
   socket.on('room_info', data => {
     updateCount(data.count);
+    // If someone is already in the room when we join, show their info immediately
+    if (data.existing_users && data.existing_users.length > 0) {
+      const other = data.existing_users[0];
+      otherAvatarEl.textContent = other.avatar;
+      otherNameEl.textContent = other.name;
+      otherOnline = true;
+      setStatus(true, other.name);
+      addSysMsg(`${other.name} is already here 👋`);
+    }
   });
 
   socket.on('user_joined', data => {
@@ -582,7 +591,7 @@
     otherNameEl.textContent = data.name;
     otherOnline = true;
     setStatus(true, data.name);
-    updateCount(2);
+    updateCount(data.count || 2);
     addSysMsg(`${data.name} joined the chat 👋`);
   });
 

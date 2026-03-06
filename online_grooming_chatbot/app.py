@@ -24,12 +24,18 @@ def on_join(data):
     users[sid] = {'name': name, 'avatar': avatar, 'room': ROOM}
     join_room(ROOM)
 
-    # Tell everyone else this user joined
-    emit('user_joined', {'name': name, 'avatar': avatar}, to=ROOM, skip_sid=sid)
-
-    # Send current user count back to the joiner
     count = len([u for u in users.values() if u['room'] == ROOM])
-    emit('room_info', {'count': count, 'room': ROOM})
+
+    # Tell everyone already in room that this user joined
+    emit('user_joined', {'name': name, 'avatar': avatar, 'count': count}, to=ROOM, skip_sid=sid)
+
+    # Send joiner info about who is already in the room
+    existing = [
+        {'name': u['name'], 'avatar': u['avatar']}
+        for s, u in users.items()
+        if u['room'] == ROOM and s != sid
+    ]
+    emit('room_info', {'count': count, 'existing_users': existing})
 
     print(f"[+] {name} joined | Total: {count}")
 
@@ -44,7 +50,6 @@ def on_message(data):
         'text': data.get('text', ''),
         'sid': sid
     }
-    # Broadcast to everyone in room including sender
     emit('message', payload, to=ROOM)
     print(f"[MSG] {user.get('name')}: {data.get('text', '')[:50]}")
 
@@ -56,7 +61,7 @@ def on_image(data):
     payload = {
         'name': user.get('name', 'Unknown'),
         'avatar': user.get('avatar', '🐼'),
-        'image': data.get('image', ''),   # base64 data URL
+        'image': data.get('image', ''),
         'filename': data.get('filename', 'image'),
         'sid': sid
     }
@@ -85,7 +90,7 @@ def on_disconnect():
 if __name__ == '__main__':
     print("=" * 45)
     print("  SafeGuard Chat Server")
-    print("  Running on http://0.0.0.0:5000")
-    print("  Share your IP address with the other device")
+    print("  Running on http://0.0.0.0:3000")
+    print("  Share your WiFi IP with the other device")
     print("=" * 45)
     socketio.run(app, host='0.0.0.0', port=3000, debug=True)
