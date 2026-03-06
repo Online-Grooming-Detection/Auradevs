@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafeGuard Chat</title>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f5f5f0;
+    --white: #ffffff;
+    --panel: #fafaf7;
+    --border: #e8e8e2;
+    --text: #1a1a18;
+    --text-dim: #8a8a82;
+    --text-light: #b8b8b0;
+    --accent: #25a56a;
+    --accent-light: #e8f5ee;
+    --accent-dark: #1a7d50;
+    --danger: #e05252;
+    --shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+    --shadow-lg: 0 12px 40px rgba(0,0,0,0.12);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .screen { display: none; width: 100%; height: 100%; }
+  .screen.active { display: flex; }
+
+  /* ── USERNAME SCREEN ── */
+  #username-screen {
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    animation: fadeIn 0.4s ease;
+  }
+
+  .logo-wrap {
+    display: flex; flex-direction: column; align-items: center;
+    margin-bottom: 40px;
+    animation: slideDown 0.5s ease both;
+  }
+
+  .logo-icon {
+    width: 72px; height: 72px;
+    background: var(--accent);
+    border-radius: 22px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 14px;
+    box-shadow: 0 8px 24px rgba(37,165,106,0.3);
+  }
+
+  .logo-icon svg { width: 36px; height: 36px; fill: white; }
+  .logo-title { font-size: 24px; font-weight: 600; color: var(--text); letter-spacing: -0.5px; }
+  .logo-sub { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
+
+  .login-card {
+    background: var(--white);
+    border-radius: 24px;
+    padding: 36px;
+    width: 360px;
+    box-shadow: var(--shadow-lg);
+    animation: slideUp 0.5s ease 0.1s both;
+  }
+
+  .login-card h2 { font-size: 20px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.3px; }
+  .login-card p { font-size: 13px; color: var(--text-dim); margin-bottom: 28px; line-height: 1.5; }
+
+  .input-group { margin-bottom: 20px; }
+  .input-group label {
+    display: block; font-size: 11px; font-weight: 500;
+    color: var(--text-dim); margin-bottom: 8px;
+    letter-spacing: 0.5px; text-transform: uppercase;
+  }
+
+  .input-group input {
+    width: 100%; padding: 13px 16px;
+    border: 1.5px solid var(--border); border-radius: 10px;
+    font-family: 'DM Sans', sans-serif; font-size: 15px;
+    color: var(--text); background: var(--panel); outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .input-group input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(37,165,106,0.1);
+    background: var(--white);
+  }
+
+  .input-group input::placeholder { color: var(--text-light); }
+  .input-group input.error { border-color: var(--danger); }
+
+  .avatar-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 28px; }
+
+  .avatar-opt {
+    width: 44px; height: 44px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; cursor: pointer;
+    border: 2.5px solid transparent;
+    transition: all 0.2s; background: var(--panel);
+  }
+
+  .avatar-opt:hover { transform: scale(1.1); }
+  .avatar-opt.selected { border-color: var(--accent); background: var(--accent-light); }
+
+  .btn-primary {
+    width: 100%; padding: 14px;
+    background: var(--accent); color: white;
+    border: none; border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px; font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    box-shadow: 0 4px 12px rgba(37,165,106,0.3);
+  }
+
+  .btn-primary:hover { background: var(--accent-dark); }
+  .btn-primary:active { transform: scale(0.98); }
+
+  .waiting-note {
+    margin-top: 16px; text-align: center;
+    font-size: 12px; color: var(--text-dim);
+    display: none;
+  }
+
+  /* ── CHAT SCREEN ── */
+  #chat-screen {
+    flex-direction: column;
+    max-width: 480px; width: 100%;
+    margin: 0 auto;
+    background: var(--white);
+    box-shadow: var(--shadow-lg);
+    position: relative;
+    height: 100vh;
+  }
+
+  .chat-header {
+    display: flex; align-items: center;
+    padding: 14px 18px;
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+    gap: 12px;
+    box-shadow: var(--shadow-sm);
+    flex-shrink: 0;
+  }
+
+  .header-avatar {
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--accent-light);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; flex-shrink: 0;
+  }
+
+  .header-info { flex: 1; }
+  .header-name { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
+
+  .header-status {
+    font-size: 12px; color: var(--accent);
+    display: flex; align-items: center; gap: 4px; margin-top: 1px;
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    background: var(--accent); border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .status-dot.offline { background: var(--text-light); animation: none; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  .header-count {
+    font-size: 11px; color: var(--text-dim);
+    background: var(--panel);
+    padding: 3px 10px; border-radius: 100px;
+    font-weight: 500;
+  }
+
+  /* Messages */
+  .messages-area {
+    flex: 1; overflow-y: auto;
+    padding: 16px 14px;
+    display: flex; flex-direction: column; gap: 3px;
+    background: var(--bg);
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Cg fill='%23000' fill-opacity='0.015'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  .messages-area::-webkit-scrollbar { width: 4px; }
+  .messages-area::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .date-divider { text-align: center; margin: 10px 0; }
+  .date-divider span {
+    font-size: 11px; font-weight: 500; color: var(--text-dim);
+    background: rgba(255,255,255,0.75); padding: 4px 12px; border-radius: 100px;
+  }
+
+  .sys-msg {
+    text-align: center; font-size: 11.5px; color: var(--text-dim);
+    background: rgba(255,255,255,0.65);
+    display: inline-block; padding: 4px 14px;
+    border-radius: 100px; margin: 6px auto;
+    align-self: center;
+  }
+
+  .msg-row {
+    display: flex; margin-bottom: 1px;
+    animation: msgIn 0.2s ease both;
+  }
+
+  @keyframes msgIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+  .msg-row.outgoing { justify-content: flex-end; }
+  .msg-row.incoming { justify-content: flex-start; }
+  .msg-row.outgoing + .msg-row.incoming,
+  .msg-row.incoming + .msg-row.outgoing { margin-top: 8px; }
+
+  .bubble {
+    max-width: 72%; padding: 9px 13px;
+    border-radius: 18px; position: relative; word-break: break-word;
+  }
+
+  .msg-row.outgoing .bubble {
+    background: #1a1a18; color: white;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg-row.incoming .bubble {
+    background: var(--white); color: var(--text);
+    border-bottom-left-radius: 4px;
+    box-shadow: var(--shadow-sm);
+  }
+
+  .bubble-sender {
+    font-size: 11px; font-weight: 600;
+    color: var(--accent); margin-bottom: 3px;
+  }
+
+  .bubble-text { font-size: 14.5px; line-height: 1.5; }
+
+  .bubble-time {
+    font-size: 10.5px; margin-top: 3px;
+    display: flex; align-items: center;
+    justify-content: flex-end; gap: 3px;
+  }
+
+  .msg-row.outgoing .bubble-time { color: rgba(255,255,255,0.5); }
+  .msg-row.incoming .bubble-time { color: var(--text-light); }
+
+  .ticks { display: flex; gap: 1px; }
+  .tick { width: 10px; height: 10px; }
+
+  .bubble-img-wrap { max-width: 220px; padding: 4px; }
+  .bubble-img-wrap img {
+    width: 100%; border-radius: 12px; display: block; cursor: zoom-in;
+  }
+
+  /* Typing */
+  .typing-row {
+    display: none; padding: 4px 0 6px;
+    animation: msgIn 0.2s ease;
+  }
+
+  .typing-row.visible { display: flex; }
+
+  .typing-bubble {
+    background: var(--white); border-radius: 18px;
+    border-bottom-left-radius: 4px;
+    padding: 12px 14px; box-shadow: var(--shadow-sm);
+    display: flex; gap: 4px; align-items: center;
+  }
+
+  .typing-dot {
+    width: 7px; height: 7px; background: var(--text-light);
+    border-radius: 50%; animation: typingBounce 1.2s ease-in-out infinite;
+  }
+
+  .typing-dot:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+  .typing-label {
+    font-size: 11px; color: var(--text-dim);
+    margin-left: 8px; align-self: center;
+  }
+
+  /* Image preview */
+  .img-preview-bar {
+    display: none; padding: 10px 14px;
+    background: var(--white);
+    border-top: 1px solid var(--border);
+    gap: 10px; align-items: center;
+    flex-shrink: 0;
+  }
+
+  .img-preview-bar.visible { display: flex; }
+  .img-thumb { width: 52px; height: 52px; border-radius: 8px; object-fit: cover; }
+  .img-preview-info { flex: 1; }
+  .img-preview-name { font-size: 13px; font-weight: 500; }
+  .img-preview-size { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+  .img-cancel {
+    width: 28px; height: 28px; border-radius: 50%; border: none;
+    background: var(--panel); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; color: var(--text-dim); transition: all 0.15s;
+  }
+  .img-cancel:hover { background: #fee; color: var(--danger); }
+
+  /* Emoji picker */
+  .emoji-picker {
+    display: none; position: absolute;
+    bottom: 70px; left: 14px;
+    background: var(--white); border: 1px solid var(--border);
+    border-radius: 14px; padding: 10px;
+    box-shadow: var(--shadow-lg); z-index: 30; width: 272px;
+  }
+  .emoji-picker.visible { display: block; animation: fadeIn 0.15s ease; }
+  .emoji-grid { display: grid; grid-template-columns: repeat(8,1fr); gap: 3px; }
+  .emoji-opt {
+    font-size: 21px; text-align: center; cursor: pointer;
+    padding: 4px; border-radius: 7px; transition: all 0.1s; line-height: 1;
+  }
+  .emoji-opt:hover { background: var(--panel); transform: scale(1.2); }
+
+  /* Input bar */
+  .input-bar {
+    display: flex; align-items: flex-end;
+    padding: 10px 14px; gap: 8px;
+    background: var(--white);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .attach-btn {
+    width: 40px; height: 40px; border-radius: 50%;
+    border: none; background: var(--panel); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); transition: all 0.15s; flex-shrink: 0;
+  }
+  .attach-btn:hover { background: var(--border); color: var(--text); }
+  .attach-btn svg { width: 20px; height: 20px; }
+
+  .msg-input-wrap {
+    flex: 1; background: var(--panel);
+    border: 1.5px solid var(--border);
+    border-radius: 22px; padding: 9px 14px;
+    display: flex; align-items: center; gap: 8px;
+    transition: border-color 0.2s;
+  }
+  .msg-input-wrap:focus-within { border-color: var(--accent); background: var(--white); }
+
+  #msg-input {
+    flex: 1; border: none; background: none;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14.5px; color: var(--text); outline: none;
+    resize: none; max-height: 100px; line-height: 1.5;
+  }
+  #msg-input::placeholder { color: var(--text-light); }
+
+  .emoji-toggle-btn {
+    background: none; border: none; font-size: 19px;
+    cursor: pointer; opacity: 0.55; transition: all 0.15s; padding: 0; line-height: 1;
+  }
+  .emoji-toggle-btn:hover { opacity: 1; transform: scale(1.15); }
+
+  .send-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: none; background: var(--accent); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; transition: all 0.2s;
+    box-shadow: 0 3px 10px rgba(37,165,106,0.3);
+  }
+  .send-btn:hover { background: var(--accent-dark); }
+  .send-btn:active { transform: scale(0.93); }
+  .send-btn svg { width: 19px; height: 19px; fill: white; }
+
+  #file-input { display: none; }
+
+  /* Connection banner */
+  .conn-banner {
+    display: none; padding: 8px;
+    text-align: center; font-size: 12px; font-weight: 500;
+    flex-shrink: 0;
+  }
+  .conn-banner.visible { display: block; }
+  .conn-banner.connecting { background: #fff8e1; color: #f59e0b; }
+  .conn-banner.disconnected { background: #fee; color: var(--danger); }
+
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  @keyframes slideUp { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes slideDown { from{opacity:0;transform:translateY(-16px)} to{opacity:1;transform:translateY(0)} }
+
+  @media (max-width: 520px) {
+    #chat-screen { max-width: 100%; box-shadow: none; }
+    .login-card { width: calc(100vw - 32px); }
+  }
+</style>
+</head>
+<body>
+
+<!-- SCREEN 1 — USERNAME -->
+<div id="username-screen" class="screen active">
+  <div class="logo-wrap">
+    <div class="logo-icon">
+      <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+    </div>
+    <div class="logo-title">SafeGuard Chat</div>
+    <div class="logo-sub">Simple · Private · Safe</div>
+  </div>
+
+  <div class="login-card">
+    <h2>What's your name?</h2>
+    <p>Pick a username to start chatting. No sign-up needed.</p>
+
+    <div class="input-group">
+      <label>Username</label>
+      <input type="text" id="username-input" placeholder="e.g. Alex, Jordan…" maxlength="20" autocomplete="off" />
+    </div>
+
+    <div class="input-group">
+      <label>Pick an avatar</label>
+      <div class="avatar-row" id="avatar-row">
+        <div class="avatar-opt selected" data-emoji="🐼">🐼</div>
+        <div class="avatar-opt" data-emoji="🦊">🦊</div>
+        <div class="avatar-opt" data-emoji="🐨">🐨</div>
+        <div class="avatar-opt" data-emoji="🦋">🦋</div>
+        <div class="avatar-opt" data-emoji="🐸">🐸</div>
+        <div class="avatar-opt" data-emoji="🦄">🦄</div>
+        <div class="avatar-opt" data-emoji="🐙">🐙</div>
+        <div class="avatar-opt" data-emoji="🦩">🦩</div>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="start-btn">Start Chatting →</button>
+    <div class="waiting-note" id="waiting-note">⏳ Connecting to server…</div>
+  </div>
+</div>
+
+<!-- SCREEN 2 — CHAT -->
+<div id="chat-screen" class="screen">
+  <div class="conn-banner" id="conn-banner"></div>
+
+  <div class="chat-header">
+    <div class="header-avatar" id="other-avatar">💬</div>
+    <div class="header-info">
+      <div class="header-name" id="other-name">Chat Room</div>
+      <div class="header-status" id="header-status">
+        <div class="status-dot" id="status-dot"></div>
+        <span id="status-text">waiting for someone to join…</span>
+      </div>
+    </div>
+    <div class="header-count" id="header-count">1 / 2</div>
+  </div>
+
+  <div class="messages-area" id="messages-area">
+    <div class="date-divider"><span>Today</span></div>
+  </div>
+
+  <div class="typing-row" id="typing-row">
+    <div class="typing-bubble">
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+    </div>
+    <span class="typing-label" id="typing-label">typing…</span>
+  </div>
+
+  <div class="img-preview-bar" id="img-preview-bar">
+    <img class="img-thumb" id="img-thumb" src="" alt="" />
+    <div class="img-preview-info">
+      <div class="img-preview-name" id="img-filename">image.jpg</div>
+      <div class="img-preview-size" id="img-filesize">—</div>
+    </div>
+    <button class="img-cancel" id="img-cancel">✕</button>
+  </div>
+
+  <div class="emoji-picker" id="emoji-picker">
+    <div class="emoji-grid" id="emoji-grid"></div>
+  </div>
+
+  <div class="input-bar">
+    <button class="attach-btn" id="attach-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+    </button>
+
+    <div class="msg-input-wrap">
+      <textarea id="msg-input" rows="1" placeholder="Message…"></textarea>
+      <button class="emoji-toggle-btn" id="emoji-toggle">😊</button>
+    </div>
+
+    <button class="send-btn" id="send-btn">
+      <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+    </button>
+  </div>
+
+  <input type="file" id="file-input" accept="image/*" />
+</div>
+
+<script>
+  const EMOJIS = ['😊','😂','❤️','😍','🥺','😭','😘','🥰','😅','🙏',
+                  '🔥','✨','😁','🎉','💕','😢','👏','🤣','💯','😉',
+                  '🤔','😎','😜','💪','🎊','👍','😋','🥳','😏','💀',
+                  '👀','🤩','😤','💬','🫶','🙈','🤗','😬','🫠','👾'];
+
+  // ── State ──
+  let myName = '';
+  let myAvatar = '🐼';
+  let mySid = null;
+  let otherOnline = false;
+  let pendingImage = null;
+  let emojiOpen = false;
+  let typingTimeout = null;
+
+  // ── Elements ──
+  const usernameScreen = document.getElementById('username-screen');
+  const chatScreen = document.getElementById('chat-screen');
+  const usernameInput = document.getElementById('username-input');
+  const startBtn = document.getElementById('start-btn');
+  const avatarRow = document.getElementById('avatar-row');
+  const waitingNote = document.getElementById('waiting-note');
+  const messagesArea = document.getElementById('messages-area');
+  const msgInput = document.getElementById('msg-input');
+  const sendBtn = document.getElementById('send-btn');
+  const attachBtn = document.getElementById('attach-btn');
+  const fileInput = document.getElementById('file-input');
+  const imgPreviewBar = document.getElementById('img-preview-bar');
+  const imgThumb = document.getElementById('img-thumb');
+  const imgFilename = document.getElementById('img-filename');
+  const imgFilesize = document.getElementById('img-filesize');
+  const imgCancel = document.getElementById('img-cancel');
+  const emojiToggle = document.getElementById('emoji-toggle');
+  const emojiPicker = document.getElementById('emoji-picker');
+  const emojiGrid = document.getElementById('emoji-grid');
+  const typingRow = document.getElementById('typing-row');
+  const typingLabel = document.getElementById('typing-label');
+  const otherAvatarEl = document.getElementById('other-avatar');
+  const otherNameEl = document.getElementById('other-name');
+  const headerStatus = document.getElementById('header-status');
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  const headerCount = document.getElementById('header-count');
+  const connBanner = document.getElementById('conn-banner');
+
+  // ── Socket ──
+  const socket = io();
+
+  socket.on('connect', () => {
+    mySid = socket.id;
+    hideBanner();
+  });
+
+  socket.on('disconnect', () => {
+    showBanner('disconnected', '⚠ Disconnected from server. Trying to reconnect…');
+    setStatus(false);
+  });
+
+  socket.on('connect_error', () => {
+    showBanner('connecting', '⏳ Connecting to server…');
+  });
+
+  socket.on('room_info', data => {
+    updateCount(data.count);
+  });
+
+  socket.on('user_joined', data => {
+    otherAvatarEl.textContent = data.avatar;
+    otherNameEl.textContent = data.name;
+    otherOnline = true;
+    setStatus(true, data.name);
+    updateCount(2);
+    addSysMsg(`${data.name} joined the chat 👋`);
+  });
+
+  socket.on('user_left', data => {
+    otherOnline = false;
+    setStatus(false);
+    updateCount(1);
+    addSysMsg(`${data.name} left the chat`);
+  });
+
+  socket.on('message', data => {
+    const isMe = data.sid === mySid;
+    addTextBubble(isMe ? 'outgoing' : 'incoming', data.text, data.name, isMe);
+  });
+
+  socket.on('image', data => {
+    const isMe = data.sid === mySid;
+    addImageBubble(isMe ? 'outgoing' : 'incoming', data.image, data.name, isMe);
+  });
+
+  socket.on('typing', data => {
+    if (data.typing) {
+      typingLabel.textContent = `${data.name} is typing…`;
+      typingRow.classList.add('visible');
+      scrollBottom();
+    } else {
+      typingRow.classList.remove('visible');
+    }
+  });
+
+  // ── Avatar pick ──
+  avatarRow.addEventListener('click', e => {
+    const opt = e.target.closest('.avatar-opt');
+    if (!opt) return;
+    document.querySelectorAll('.avatar-opt').forEach(a => a.classList.remove('selected'));
+    opt.classList.add('selected');
+    myAvatar = opt.dataset.emoji;
+  });
+
+  // ── Start ──
+  startBtn.addEventListener('click', startChat);
+  usernameInput.addEventListener('keydown', e => { if (e.key === 'Enter') startChat(); });
+
+  function startChat() {
+    const val = usernameInput.value.trim();
+    if (!val) {
+      usernameInput.classList.add('error');
+      usernameInput.focus();
+      return;
+    }
+    usernameInput.classList.remove('error');
+    myName = val;
+
+    // Emit join
+    socket.emit('join', { name: myName, avatar: myAvatar });
+
+    usernameScreen.classList.remove('active');
+    chatScreen.classList.add('active');
+    msgInput.focus();
+
+    addSysMsg(`You joined as ${myName} ${myAvatar}`);
+  }
+
+  // ── Send ──
+  sendBtn.addEventListener('click', sendMessage);
+  msgInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  msgInput.addEventListener('input', () => {
+    msgInput.style.height = 'auto';
+    msgInput.style.height = Math.min(msgInput.scrollHeight, 100) + 'px';
+
+    // Typing indicator
+    socket.emit('typing', { typing: true });
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => socket.emit('typing', { typing: false }), 1500);
+  });
+
+  function sendMessage() {
+    if (pendingImage) {
+      socket.emit('image', {
+        image: pendingImage.src,
+        filename: pendingImage.name
+      });
+      clearImagePreview();
+
+      const text = msgInput.value.trim();
+      if (text) {
+        setTimeout(() => socket.emit('message', { text }), 150);
+        msgInput.value = '';
+        msgInput.style.height = 'auto';
+      }
+      socket.emit('typing', { typing: false });
+      return;
+    }
+
+    const text = msgInput.value.trim();
+    if (!text) return;
+    socket.emit('message', { text });
+    msgInput.value = '';
+    msgInput.style.height = 'auto';
+    socket.emit('typing', { typing: false });
+    clearTimeout(typingTimeout);
+    closeEmoji();
+  }
+
+  // ── Bubbles ──
+  function addTextBubble(dir, text, senderName, isMe) {
+    const row = document.createElement('div');
+    row.className = `msg-row ${dir}`;
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const ticks = isMe
+      ? `<div class="ticks"><svg class="tick" viewBox="0 0 16 15" fill="rgba(255,255,255,0.5)"><path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.879a.32.32 0 0 1-.484.033l-.358-.325a.319.319 0 0 0-.484.032l-.378.483a.418.418 0 0 0 .036.541l1.32 1.266c.143.14.361.125.484-.033l6.272-8.048a.366.366 0 0 0-.064-.512zm-4.1 0l-.478-.372a.365.365 0 0 0-.51.063L4.566 9.879a.32.32 0 0 1-.484.033L1.891 7.769a.366.366 0 0 0-.515.006l-.423.433a.364.364 0 0 0 .006.514l3.258 3.185c.143.14.361.125.484-.033l6.272-8.048a.365.365 0 0 0-.063-.51z"/></svg></div>`
+      : '';
+
+    row.innerHTML = `
+      <div class="bubble">
+        <div class="bubble-text">${escHtml(text)}</div>
+        <div class="bubble-time">${time}${ticks}</div>
+      </div>`;
+    messagesArea.appendChild(row);
+    typingRow.classList.remove('visible');
+    scrollBottom();
+  }
+
+  function addImageBubble(dir, src, senderName, isMe) {
+    const row = document.createElement('div');
+    row.className = `msg-row ${dir}`;
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    row.innerHTML = `
+      <div class="bubble" style="padding:5px 5px 7px;">
+        <div class="bubble-img-wrap">
+          <img src="${src}" alt="image" onclick="window.open(this.src,'_blank')" />
+        </div>
+        <div class="bubble-time" style="padding:0 6px;">${time}</div>
+      </div>`;
+    messagesArea.appendChild(row);
+    typingRow.classList.remove('visible');
+    scrollBottom();
+  }
+
+  function addSysMsg(text) {
+    const el = document.createElement('div');
+    el.className = 'sys-msg';
+    el.textContent = text;
+    messagesArea.appendChild(el);
+    scrollBottom();
+  }
+
+  // ── Image attach ──
+  attachBtn.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      pendingImage = { src: ev.target.result, name: file.name };
+      imgThumb.src = ev.target.result;
+      imgFilename.textContent = file.name.length > 24 ? file.name.slice(0,22)+'…' : file.name;
+      imgFilesize.textContent = fmtSize(file.size);
+      imgPreviewBar.classList.add('visible');
+      msgInput.focus();
+    };
+    reader.readAsDataURL(file);
+    fileInput.value = '';
+  });
+
+  imgCancel.addEventListener('click', clearImagePreview);
+
+  function clearImagePreview() {
+    pendingImage = null;
+    imgPreviewBar.classList.remove('visible');
+    imgThumb.src = '';
+  }
+
+  function fmtSize(b) {
+    if (b < 1024) return b + ' B';
+    if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+    return (b/1048576).toFixed(1) + ' MB';
+  }
+
+  // ── Emoji ──
+  EMOJIS.forEach(e => {
+    const div = document.createElement('div');
+    div.className = 'emoji-opt';
+    div.textContent = e;
+    div.addEventListener('click', () => {
+      msgInput.value += e;
+      msgInput.focus();
+      closeEmoji();
+    });
+    emojiGrid.appendChild(div);
+  });
+
+  emojiToggle.addEventListener('click', ev => {
+    ev.stopPropagation();
+    emojiOpen ? closeEmoji() : openEmoji();
+  });
+
+  document.addEventListener('click', () => closeEmoji());
+  emojiPicker.addEventListener('click', ev => ev.stopPropagation());
+
+  function openEmoji() { emojiPicker.classList.add('visible'); emojiOpen = true; }
+  function closeEmoji() { emojiPicker.classList.remove('visible'); emojiOpen = false; }
+
+  // ── UI helpers ──
+  function setStatus(online, name = '') {
+    if (online) {
+      statusDot.className = 'status-dot';
+      statusText.textContent = `${name} is online`;
+    } else {
+      statusDot.className = 'status-dot offline';
+      statusText.textContent = 'waiting for someone to join…';
+    }
+  }
+
+  function updateCount(n) {
+    headerCount.textContent = `${n} / 2`;
+  }
+
+  function showBanner(type, msg) {
+    connBanner.className = `conn-banner visible ${type}`;
+    connBanner.textContent = msg;
+  }
+
+  function hideBanner() {
+    connBanner.className = 'conn-banner';
+  }
+
+  function scrollBottom() {
+    requestAnimationFrame(() => { messagesArea.scrollTop = messagesArea.scrollHeight; });
+  }
+
+  function escHtml(t) {
+    return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+             .replace(/"/g,'&quot;').replace(/\n/g,'<br>');
+  }
+
+  usernameInput.focus();
+</script>
+</body>
+</html>
